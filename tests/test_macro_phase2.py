@@ -3,8 +3,10 @@ from datetime import date
 
 import pytest
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableLambda
 from langgraph.prebuilt import ToolNode
 
+from tradingagents.agents import create_macro_analyst
 from tradingagents.agents.utils import macro_data_tools
 from tradingagents.agents.utils.macro_data_tools import (
     _cache_file,
@@ -14,6 +16,7 @@ from tradingagents.agents.utils.macro_data_tools import (
 )
 from tradingagents.dataflows.config import set_config
 from tradingagents.graph.conditional_logic import ConditionalLogic
+from tradingagents.graph.propagation import Propagator
 from tradingagents.graph.setup import GraphSetup
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 
@@ -205,3 +208,20 @@ def test_trading_graph_default_and_tool_nodes_include_macro():
 
     assert default_selected == ["market", "macro", "social", "news", "fundamentals"]
     assert "macro" in tool_nodes
+
+
+@pytest.mark.unit
+def test_macro_analyst_stores_snapshot_and_quality_without_keys(monkeypatch):
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.delenv("BOK_ECOS_API_KEY", raising=False)
+
+    llm = RunnableLambda(lambda _: AIMessage(content="매크로 리포트"))
+    node = create_macro_analyst(llm)
+    state = Propagator().create_initial_state("AAPL", "2026-05-20")
+
+    result = node(state)
+
+    assert result["macro_report"] == "매크로 리포트"
+    assert result["macro_snapshot"]["market"] == "US"
+    assert result["macro_snapshot"]["available"] is False
+    assert result["macro_data_quality"]["quality"] == "low"
