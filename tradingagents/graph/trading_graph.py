@@ -386,6 +386,10 @@ class TradingAgentsGraph:
             "company_of_interest": final_state["company_of_interest"],
             "trade_date": final_state["trade_date"],
             "market_report": final_state["market_report"],
+            "macro_report": final_state.get("macro_report", ""),
+            "macro_snapshot": final_state.get("macro_snapshot", {}),
+            "macro_data_quality": final_state.get("macro_data_quality", {}),
+            "agent_scores": final_state.get("agent_scores", {}),
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
@@ -410,6 +414,10 @@ class TradingAgentsGraph:
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "final_rating": final_state.get("final_rating", ""),
+            "conditional_action": final_state.get("conditional_action", ""),
+            "invalidation_conditions": final_state.get("invalidation_conditions", []),
+            "decision_log_payload": final_state.get("decision_log_payload", {}),
         }
 
         # Save to file. Reject ticker values that would escape the

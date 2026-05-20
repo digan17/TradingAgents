@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from typing_extensions import TypedDict
 from langgraph.graph import MessagesState
 
@@ -56,6 +56,16 @@ class AgentState(MessagesState):
         str, "Report from the News Researcher of current world affairs"
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
+    macro_report: Annotated[str, "Report from the Macro Analyst"]
+    macro_snapshot: Annotated[
+        dict[str, Any], "Raw and derived macro indicator snapshot"
+    ]
+    macro_data_quality: Annotated[
+        dict[str, Any], "Macro data availability and quality metadata"
+    ]
+    agent_scores: Annotated[
+        dict[str, Any], "Rule-based and semi-rule-based agent score outputs"
+    ]
 
     # researcher team discussion step
     investment_debate_state: Annotated[
@@ -70,4 +80,12 @@ class AgentState(MessagesState):
         RiskDebateState, "Current state of the debate on evaluating risk"
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
+    final_rating: Annotated[str, "Final investment committee rating"]
+    conditional_action: Annotated[str, "Final conditional action"]
+    invalidation_conditions: Annotated[
+        list[str], "Conditions that invalidate the investment thesis"
+    ]
+    decision_log_payload: Annotated[
+        dict[str, Any], "Decision log payload for future evaluation"
+    ]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]

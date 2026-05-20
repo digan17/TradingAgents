@@ -49,9 +49,17 @@ class Propagator:
                 }
             ),
             "market_report": "",
+            "macro_report": "",
+            "macro_snapshot": {},
+            "macro_data_quality": {},
+            "agent_scores": {},
             "fundamentals_report": "",
             "sentiment_report": "",
             "news_report": "",
+            "final_rating": "",
+            "conditional_action": "",
+            "invalidation_conditions": [],
+            "decision_log_payload": {},
         }
 
     def get_graph_args(self, callbacks: Optional[List] = None) -> Dict[str, Any]:
