@@ -39,6 +39,28 @@ class PortfolioRating(str, Enum):
     SELL = "Sell"
 
 
+class CommitteeRating(str, Enum):
+    """6-tier final investment committee rating."""
+
+    STRONG_BUY = "Strong Buy"
+    BUY = "Buy"
+    WATCH = "Watch"
+    HOLD = "Hold"
+    REDUCE = "Reduce"
+    AVOID = "Avoid"
+
+
+class ConditionalAction(str, Enum):
+    """Final conditional action for user-facing reports."""
+
+    IMMEDIATE_ENTRY = "Immediate entry possible"
+    WAIT_FOR_PULLBACK = "Wait for pullback"
+    WATCH_ONLY = "Watch only"
+    HOLD_EXISTING_ONLY = "Hold existing position only"
+    REDUCE_EXPOSURE = "Reduce exposure"
+    AVOID_NEW_ENTRY = "Avoid new entry"
+
+
 class TraderAction(str, Enum):
     """3-tier transaction direction used by the Trader.
 
@@ -136,6 +158,14 @@ class TraderProposal(BaseModel):
         default=None,
         description="Optional sizing guidance, e.g. '5% of portfolio'.",
     )
+    holding_horizon: Optional[str] = Field(
+        default=None,
+        description="Optional proposed holding horizon, e.g. '2-6 weeks'.",
+    )
+    review_trigger: Optional[str] = Field(
+        default=None,
+        description="Optional condition that should trigger a review.",
+    )
 
 
 def render_trader_proposal(proposal: TraderProposal) -> str:
@@ -156,6 +186,10 @@ def render_trader_proposal(proposal: TraderProposal) -> str:
         parts.extend(["", f"**Stop Loss**: {proposal.stop_loss}"])
     if proposal.position_sizing:
         parts.extend(["", f"**Position Sizing**: {proposal.position_sizing}"])
+    if proposal.holding_horizon:
+        parts.extend(["", f"**Holding Horizon**: {proposal.holding_horizon}"])
+    if proposal.review_trigger:
+        parts.extend(["", f"**Review Trigger**: {proposal.review_trigger}"])
     parts.extend([
         "",
         f"FINAL TRANSACTION PROPOSAL: **{proposal.action.value.upper()}**",
@@ -177,11 +211,26 @@ class PortfolioDecision(BaseModel):
     the rating-scale guidance.
     """
 
-    rating: PortfolioRating = Field(
+    rating: CommitteeRating = Field(
         description=(
-            "The final position rating. Exactly one of Buy / Overweight / Hold / "
-            "Underweight / Sell, picked based on the analysts' debate."
+            "The final rating. Exactly one of Strong Buy / Buy / Watch / Hold / "
+            "Reduce / Avoid."
         ),
+    )
+    conditional_action: ConditionalAction = Field(
+        description=(
+            "The conditional action. Exactly one of Immediate entry possible / "
+            "Wait for pullback / Watch only / Hold existing position only / "
+            "Reduce exposure / Avoid new entry."
+        ),
+    )
+    confidence: int = Field(
+        ge=0,
+        le=100,
+        description="Final confidence from 0 to 100.",
+    )
+    data_quality: str = Field(
+        description="Overall data quality: high, medium, or low.",
     )
     executive_summary: str = Field(
         description=(
@@ -200,29 +249,92 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional target price in the instrument's quote currency.",
     )
+    entry_zone: Optional[str] = Field(
+        default=None,
+        description="Suggested entry zone or condition. Use 'N/A' if no entry is advised.",
+    )
+    invalidation_conditions: list[str] = Field(
+        default_factory=list,
+        description="Conditions that invalidate the investment thesis.",
+    )
+    risk_summary: list[str] = Field(
+        default_factory=list,
+        description="Key risk factors that drive the final decision.",
+    )
+    sizing: str = Field(
+        default="No new position until conditions improve.",
+        description="Position sizing suggestion.",
+    )
     time_horizon: Optional[str] = Field(
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
     )
+    review_trigger: Optional[str] = Field(
+        default=None,
+        description="Trigger for re-review after the decision.",
+    )
+
+
+RATING_KO = {
+    CommitteeRating.STRONG_BUY: "강한 매수 후보",
+    CommitteeRating.BUY: "매수 후보",
+    CommitteeRating.WATCH: "관심/관찰",
+    CommitteeRating.HOLD: "보유",
+    CommitteeRating.REDUCE: "비중 축소",
+    CommitteeRating.AVOID: "회피",
+}
+
+ACTION_KO = {
+    ConditionalAction.IMMEDIATE_ENTRY: "즉시 진입 가능",
+    ConditionalAction.WAIT_FOR_PULLBACK: "눌림목 대기",
+    ConditionalAction.WATCH_ONLY: "관찰만",
+    ConditionalAction.HOLD_EXISTING_ONLY: "기존 보유만",
+    ConditionalAction.REDUCE_EXPOSURE: "비중 축소",
+    ConditionalAction.AVOID_NEW_ENTRY: "신규 진입 회피",
+}
 
 
 def render_pm_decision(decision: PortfolioDecision) -> str:
-    """Render a PortfolioDecision back to the markdown shape the rest of the system expects.
-
-    Memory log, CLI display, and saved report files all read this markdown,
-    so the rendered output preserves the exact section headers (``**Rating**``,
-    ``**Executive Summary**``, ``**Investment Thesis**``) that downstream
-    parsers and the report writers already handle.
-    """
+    """Render a PortfolioDecision as a Korean investment committee report."""
+    risks = decision.risk_summary or ["명시된 핵심 리스크가 제한적입니다."]
+    invalidations = decision.invalidation_conditions or ["명시된 무효화 조건 없음"]
     parts = [
-        f"**Rating**: {decision.rating.value}",
+        "# 투자위원회 종합 리포트",
         "",
-        f"**Executive Summary**: {decision.executive_summary}",
+        "## 1. 요약 판단",
+        f"- 최종 등급: **{RATING_KO[decision.rating]}** (`{decision.rating.value}`)",
+        f"- 조건부 액션: **{ACTION_KO[decision.conditional_action]}** (`{decision.conditional_action.value}`)",
+        f"- 확신도: **{decision.confidence}/100**",
+        f"- 데이터 품질: **{decision.data_quality}**",
         "",
-        f"**Investment Thesis**: {decision.investment_thesis}",
+        "## 2. 핵심 판단 근거",
+        decision.executive_summary,
+        "",
+        "## 3. 투자 thesis",
+        decision.investment_thesis,
+        "",
+        "## 4. 리스크와 무효화 조건",
+        *[f"- 리스크: {risk}" for risk in risks],
+        *[f"- 무효화 조건: {condition}" for condition in invalidations],
+        "",
+        "## 5. 실행 계획",
+        f"- 진입 구간: {decision.entry_zone or 'N/A'}",
+        f"- 사이징: {decision.sizing}",
+        f"- 보유 기간: {decision.time_horizon or 'N/A'}",
+        f"- 재검토 조건: {decision.review_trigger or 'N/A'}",
     ]
     if decision.price_target is not None:
-        parts.extend(["", f"**Price Target**: {decision.price_target}"])
-    if decision.time_horizon:
-        parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
+        parts.append(f"- 목표가: {decision.price_target}")
+    parts.extend([
+        "",
+        "## 6. 최종 결론",
+        decision.executive_summary,
+        "",
+        "본 리포트는 투자 판단을 돕기 위한 리서치 보조 자료이며, 투자 자문이나 매수/매도 권유가 아닙니다.",
+        "",
+        f"**Rating**: {decision.rating.value}",
+        f"**Conditional Action**: {decision.conditional_action.value}",
+        f"**Confidence**: {decision.confidence}",
+        f"**Data Quality**: {decision.data_quality}",
+    ])
     return "\n".join(parts)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
@@ -11,12 +13,14 @@ from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
+from tradingagents.agents.utils.scoring import build_agent_scores
 
 
 def create_research_manager(llm):
     structured_llm = bind_structured(llm, ResearchPlan, "Research Manager")
 
     def research_manager_node(state) -> dict:
+        agent_scores = state.get("agent_scores") or build_agent_scores(state)
         instrument_context = build_instrument_context(state["company_of_interest"])
         history = state["investment_debate_state"].get("history", "")
 
@@ -40,7 +44,18 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 ---
 
 **Debate History:**
-{history}""" + get_language_instruction()
+{history}
+
+---
+
+**Rule-based scores JSON**
+These scores are deterministic inputs for interpretation. Do not invent new
+scores; explain which scores matter, which are weak, and what would change
+the interpretation.
+
+```json
+{json.dumps(agent_scores, ensure_ascii=False, indent=2)}
+```""" + get_language_instruction()
 
         investment_plan = invoke_structured_or_freetext(
             structured_llm,
@@ -62,6 +77,7 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
         return {
             "investment_debate_state": new_investment_debate_state,
             "investment_plan": investment_plan,
+            "agent_scores": agent_scores,
         }
 
     return research_manager_node

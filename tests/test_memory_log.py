@@ -5,7 +5,12 @@ import pandas as pd
 from unittest.mock import MagicMock, patch
 
 from tradingagents.agents.utils.memory import TradingMemoryLog
-from tradingagents.agents.schemas import PortfolioDecision, PortfolioRating
+from tradingagents.agents.schemas import (
+    CommitteeRating,
+    ConditionalAction,
+    PortfolioDecision,
+    PortfolioRating,
+)
 from tradingagents.graph.reflection import Reflector
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.graph.propagation import Propagator
@@ -89,7 +94,10 @@ def _structured_pm_llm(captured: dict, decision: PortfolioDecision | None = None
     """
     if decision is None:
         decision = PortfolioDecision(
-            rating=PortfolioRating.HOLD,
+            rating=CommitteeRating.WATCH,
+            conditional_action=ConditionalAction.WATCH_ONLY,
+            confidence=55,
+            data_quality="medium",
             executive_summary="Hold the position; await catalyst.",
             investment_thesis="Balanced view; neither side carried the debate.",
         )
@@ -700,21 +708,34 @@ class TestPortfolioManagerInjection:
         can parse without any extra LLM call."""
         captured = {}
         decision = PortfolioDecision(
-            rating=PortfolioRating.OVERWEIGHT,
+            rating=CommitteeRating.BUY,
+            conditional_action=ConditionalAction.WAIT_FOR_PULLBACK,
+            confidence=72,
+            data_quality="medium",
             executive_summary="Build position gradually over the next two weeks.",
             investment_thesis="AI capex cycle remains intact; institutional flows constructive.",
+            entry_zone="Pullback near support",
+            invalidation_conditions=["Break below key support"],
+            risk_summary=["Macro pressure could compress multiples"],
+            sizing="3-5% of portfolio",
             price_target=215.0,
             time_horizon="3-6 months",
+            review_trigger="Earnings revision turns negative",
         )
         llm = _structured_pm_llm(captured, decision)
         pm_node = create_portfolio_manager(llm)
         result = pm_node(_make_pm_state())
         md = result["final_trade_decision"]
-        assert "**Rating**: Overweight" in md
-        assert "**Executive Summary**: Build position gradually" in md
-        assert "**Investment Thesis**: AI capex cycle" in md
-        assert "**Price Target**: 215.0" in md
-        assert "**Time Horizon**: 3-6 months" in md
+        assert "투자위원회 종합 리포트" in md
+        assert "`Buy`" in md
+        assert "`Wait for pullback`" in md
+        assert "Build position gradually" in md
+        assert "AI capex cycle" in md
+        assert "215.0" in md
+        assert result["final_rating"] == "Buy"
+        assert result["conditional_action"] == "Wait for pullback"
+        assert result["invalidation_conditions"] == ["Break below key support"]
+        assert result["decision_log_payload"]["holding_horizon"] == "3-6 months"
 
     def test_pm_falls_back_to_freetext_when_structured_unavailable(self):
         """If a provider does not support with_structured_output, the agent

@@ -10,7 +10,12 @@ to it.
 
 import pytest
 
-from tradingagents.agents.utils.rating import RATINGS_5_TIER, parse_rating
+from tradingagents.agents.utils.rating import (
+    RATINGS_5_TIER,
+    RATINGS_COMMITTEE,
+    parse_committee_rating,
+    parse_rating,
+)
 from tradingagents.graph.signal_processing import SignalProcessor
 
 
@@ -61,6 +66,15 @@ class TestParseRating:
         for r in RATINGS_5_TIER:
             assert parse_rating(f"Rating: {r}") == r
 
+    def test_all_committee_tiers_recognised(self):
+        for r in RATINGS_COMMITTEE:
+            assert parse_committee_rating(f"Rating: {r}") == r
+
+    def test_legacy_rating_maps_to_committee_scale(self):
+        assert parse_committee_rating("Rating: Overweight") == "Buy"
+        assert parse_committee_rating("Rating: Underweight") == "Reduce"
+        assert parse_committee_rating("Rating: Sell") == "Avoid"
+
 
 # ---------------------------------------------------------------------------
 # SignalProcessor: thin adapter over the heuristic
@@ -71,8 +85,8 @@ class TestParseRating:
 class TestSignalProcessor:
     def test_returns_rating_from_pm_markdown(self):
         sp = SignalProcessor()
-        md = "**Rating**: Overweight\n\n**Executive Summary**: Build gradually."
-        assert sp.process_signal(md) == "Overweight"
+        md = "**Rating**: Watch\n\n**Executive Summary**: Wait for pullback."
+        assert sp.process_signal(md) == "Watch"
 
     def test_makes_no_llm_calls(self):
         """SignalProcessor must not invoke the LLM it was constructed with —
@@ -87,4 +101,4 @@ class TestSignalProcessor:
 
     def test_default_when_no_rating_present(self):
         sp = SignalProcessor()
-        assert sp.process_signal("Plain prose without a recommendation.") == "Hold"
+        assert sp.process_signal("Plain prose without a recommendation.") == "Watch"
