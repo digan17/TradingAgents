@@ -17,7 +17,7 @@ from tradingagents.agents.utils.macro_data_tools import (
 from tradingagents.dataflows.config import set_config
 from tradingagents.graph.conditional_logic import ConditionalLogic
 from tradingagents.graph.propagation import Propagator
-from tradingagents.graph.setup import GraphSetup
+from tradingagents.graph.setup import DEFAULT_ANALYSTS, GraphSetup
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 
@@ -181,6 +181,7 @@ def test_should_continue_macro_routes_tool_calls():
 
     assert logic.should_continue_macro({"messages": [with_tool]}) == "tools_macro"
     assert logic.should_continue_macro({"messages": [without_tool]}) == "Msg Clear Macro"
+    assert logic.should_continue_macro({"messages": [object()]}) == "Msg Clear Macro"
 
 
 @pytest.mark.unit
@@ -203,10 +204,10 @@ def test_graph_setup_accepts_macro_only_and_default_macro_flow():
 
 @pytest.mark.unit
 def test_trading_graph_default_and_tool_nodes_include_macro():
-    default_selected = TradingAgentsGraph.__init__.__defaults__[0]
     tool_nodes = TradingAgentsGraph._create_tool_nodes(object())
 
-    assert default_selected == ["market", "macro", "social", "news", "fundamentals"]
+    assert TradingAgentsGraph.__init__.__defaults__[0] is None
+    assert DEFAULT_ANALYSTS == ("market", "macro", "social", "news", "fundamentals")
     assert "macro" in tool_nodes
 
 
